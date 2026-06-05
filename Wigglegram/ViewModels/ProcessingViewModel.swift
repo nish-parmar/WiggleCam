@@ -2,7 +2,7 @@ import SwiftUI
 
 @MainActor
 final class ProcessingViewModel: ObservableObject {
-    @Published var stage: WigglegramStage = .aligning
+    @Published var stage: WigglegramStage = .normalizing
     @Published var errorMessage: String?
     @Published var result: Wigglegram?
 

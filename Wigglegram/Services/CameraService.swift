@@ -52,10 +52,13 @@ final class CameraService: NSObject, ObservableObject {
     private var primaryInput: AVCaptureDeviceInput?
     private var secondaryInput: AVCaptureDeviceInput?
 
+    // Cached so we can stamp FOV onto each CapturedPair.
+    private var primaryDevice: AVCaptureDevice?
+    private var secondaryDevice: AVCaptureDevice?
+
     // MARK: - In-flight capture state
     private var pendingDualResults: [String: UIImage] = [:]
-    private var pendingDualContinuation: CheckedContinuation<CapturedPair, Error>?
-    private var pendingDualMode: CaptureMode?
+    private var pendingDualContinuation: CheckedContinuation<(UIImage, UIImage), Error>?
     private let pendingPrimaryID = "primary"
     private let pendingSecondaryID = "secondary"
 
@@ -79,20 +82,24 @@ final class CameraService: NSObject, ObservableObject {
     }
 
     // MARK: - Configure
-    func configure() async {
+    func configure(preference: CaptureModePreference = .auto) async {
         guard await requestAuthorizationIfNeeded() else {
             lastError = .notAuthorized
             return
         }
 
-        let detected = detectCapability()
+        let detected = detectCapability(preference: preference)
         capability = detected
 
         switch detected {
         case .dual(let primary, let secondary, let aLens, let bLens):
+            primaryDevice = primary
+            secondaryDevice = secondary
             await configureDualSession(primary: primary, secondary: secondary,
                                        primaryLens: aLens, secondaryLens: bLens)
         case .sequential(let device, _):
+            primaryDevice = device
+            secondaryDevice = nil
             await configureSingleSession(device: device)
         case .none:
             lastError = .noBackCamera
@@ -121,16 +128,27 @@ final class CameraService: NSObject, ObservableObject {
     }
 
     // MARK: - Capability Detection
-    private func detectCapability() -> CameraCapability? {
+    private func detectCapability(preference: CaptureModePreference) -> CameraCapability? {
         let isMultiSupported = AVCaptureMultiCamSession.isMultiCamSupported
 
-        let wide      = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back)
-        let ultra     = AVCaptureDevice.default(.builtInUltraWideCamera, for: .video, position: .back)
-        let tele      = AVCaptureDevice.default(.builtInTelephotoCamera, for: .video, position: .back)
+        let wide  = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back)
+        let ultra = AVCaptureDevice.default(.builtInUltraWideCamera, for: .video, position: .back)
+        let tele  = AVCaptureDevice.default(.builtInTelephotoCamera, for: .video, position: .back)
 
-        // Preferred dual pairings:
-        // 1) Wide + Ultra Wide
-        // 2) Wide + Telephoto
+        // If the user has explicitly chosen sequential capture, honor it
+        // immediately — same lens, two slightly different positions yields
+        // the strongest, most uniform parallax.
+        if preference == .sequential {
+            if let w = wide  { return .sequential(device: w, lens: .wide) }
+            if let u = ultra { return .sequential(device: u, lens: .ultraWide) }
+            if let t = tele  { return .sequential(device: t, lens: .telephoto) }
+            return nil
+        }
+
+        // Otherwise prefer dual-cam pairings (auto + dualOnly both want this).
+        // Preferred pairings:
+        //   1) Wide + Ultra Wide (largest baseline on most iPhones)
+        //   2) Wide + Telephoto
         if isMultiSupported, let w = wide, let u = ultra {
             return .dual(primary: w, secondary: u, primaryLens: .wide, secondaryLens: .ultraWide)
         }
@@ -139,7 +157,7 @@ final class CameraService: NSObject, ObservableObject {
         }
 
         // Fallback to a single rear camera (prefer wide).
-        if let w = wide { return .sequential(device: w, lens: .wide) }
+        if let w = wide  { return .sequential(device: w, lens: .wide) }
         if let u = ultra { return .sequential(device: u, lens: .ultraWide) }
         if let t = tele  { return .sequential(device: t, lens: .telephoto) }
         return nil
@@ -276,23 +294,33 @@ final class CameraService: NSObject, ObservableObject {
 
         switch capability {
         case .dual:
-            return try await captureDual(mode: capability.mode)
+            let (imageA, imageB) = try await captureDualImages()
+            return CapturedPair(imageA: imageA,
+                                imageB: imageB,
+                                mode: capability.mode,
+                                captureDate: Date(),
+                                fovA: primaryDevice?.activeFormat.videoFieldOfView,
+                                fovB: secondaryDevice?.activeFormat.videoFieldOfView)
         case .sequential(_, let lens):
             let a = try await captureSingle()
             // Brief delay so the user's slight hand motion gives a small viewpoint shift.
             try? await Task.sleep(nanoseconds: 120_000_000)
             let b = try await captureSingle()
-            return CapturedPair(imageA: a, imageB: b, mode: .sequential(lens: lens), captureDate: Date())
+            return CapturedPair(imageA: a,
+                                imageB: b,
+                                mode: .sequential(lens: lens),
+                                captureDate: Date(),
+                                fovA: primaryDevice?.activeFormat.videoFieldOfView,
+                                fovB: primaryDevice?.activeFormat.videoFieldOfView)
         }
     }
 
-    private func captureDual(mode: CaptureMode) async throws -> CapturedPair {
+    private func captureDualImages() async throws -> (UIImage, UIImage) {
         guard let primaryOutput, let secondaryOutput else {
             throw CameraError.captureFailed("Outputs not ready")
         }
-        return try await withCheckedThrowingContinuation { (cont: CheckedContinuation<CapturedPair, Error>) in
+        return try await withCheckedThrowingContinuation { (cont: CheckedContinuation<(UIImage, UIImage), Error>) in
             pendingDualResults.removeAll()
-            pendingDualMode = mode
             pendingDualContinuation = cont
 
             let settingsPrimary = AVCapturePhotoSettings()
@@ -335,12 +363,9 @@ final class CameraService: NSObject, ObservableObject {
 
             if let a = self.pendingDualResults[self.pendingPrimaryID],
                let b = self.pendingDualResults[self.pendingSecondaryID],
-               let mode = self.pendingDualMode,
                let cont = self.pendingDualContinuation {
-                let pair = CapturedPair(imageA: a, imageB: b, mode: mode, captureDate: Date())
-                cont.resume(returning: pair)
+                cont.resume(returning: (a, b))
                 self.pendingDualContinuation = nil
-                self.pendingDualMode = nil
                 self.pendingDualResults.removeAll()
             }
         }

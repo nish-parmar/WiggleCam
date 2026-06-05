@@ -10,8 +10,8 @@ final class CaptureViewModel: ObservableObject {
     var session: AVCaptureSession { camera.session }
     var captureMode: CaptureMode? { camera.capability?.mode }
 
-    func start() async {
-        await camera.configure()
+    func start(preference: CaptureModePreference = .auto) async {
+        await camera.configure(preference: preference)
         if let err = camera.lastError {
             errorMessage = err.localizedDescription
         }

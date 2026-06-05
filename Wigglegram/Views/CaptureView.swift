@@ -2,6 +2,7 @@ import SwiftUI
 
 struct CaptureView: View {
     @EnvironmentObject private var router: AppRouter
+    @EnvironmentObject private var settings: AppSettings
     @StateObject private var vm = CaptureViewModel()
 
     var body: some View {
@@ -17,12 +18,13 @@ struct CaptureView: View {
                     .padding(.top, 24)
 
                 Spacer(minLength: 0)
+                hintText
                 shutterRow
                 Spacer(minLength: 0)
             }
         }
         .task {
-            await vm.start()
+            await vm.start(preference: settings.captureModePreference)
         }
         .onDisappear { vm.stop() }
         .alert("Camera Error",
@@ -53,6 +55,28 @@ struct CaptureView: View {
         .background(Color.black.opacity(0.55))
         .clipShape(Capsule())
         .padding(12)
+    }
+
+    private var hintText: some View {
+        Group {
+            switch vm.captureMode {
+            case .sequential:
+                Text("Slide phone slightly while capturing for stronger parallax")
+                    .font(.system(size: 11, weight: .regular))
+                    .tracking(1)
+                    .foregroundStyle(.white.opacity(0.55))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
+            case .dualCamera:
+                Text("Hold steady — both lenses fire at once")
+                    .font(.system(size: 11, weight: .regular))
+                    .tracking(1)
+                    .foregroundStyle(.white.opacity(0.55))
+            case .none:
+                EmptyView()
+            }
+        }
+        .padding(.bottom, 8)
     }
 
     private var shutterRow: some View {

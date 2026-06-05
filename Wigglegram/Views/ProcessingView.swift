@@ -53,7 +53,7 @@ struct ProcessingView: View {
     }
 
     private var visibleStages: [WigglegramStage] {
-        [.aligning, .cropping, .building]
+        [.normalizing, .aligning, .cropping, .building]
     }
 
     private func stageColor(_ stage: WigglegramStage) -> Color {
@@ -68,7 +68,7 @@ struct ProcessingView: View {
     }
 
     private func isStageComplete(_ stage: WigglegramStage) -> Bool {
-        let order: [WigglegramStage] = [.aligning, .cropping, .building, .done]
+        let order: [WigglegramStage] = [.normalizing, .aligning, .cropping, .building, .done]
         guard let current = order.firstIndex(of: vm.stage),
               let me = order.firstIndex(of: stage) else { return false }
         return me < current

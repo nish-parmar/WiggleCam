@@ -30,11 +30,21 @@ struct SettingsView: View {
                 }
 
                 section(title: "Capture") {
-                    Toggle(isOn: $settings.preferDualCamera) {
-                        Text("Prefer dual camera when available")
-                            .foregroundStyle(.white)
+                    VStack(alignment: .leading, spacing: 10) {
+                        Picker("Capture Mode",
+                               selection: Binding(get: { settings.captureModePreference },
+                                                  set: { settings.captureModePreference = $0 })) {
+                            ForEach(CaptureModePreference.allCases) { mode in
+                                Text(mode.title).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
+                        Text(settings.captureModePreference.explanation)
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundStyle(.white.opacity(0.55))
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    .tint(.white)
                 }
 
                 Spacer()
