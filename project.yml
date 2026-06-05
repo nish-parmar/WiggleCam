@@ -16,6 +16,9 @@ targets:
     type: application
     platform: iOS
     deploymentTarget: "17.0"
+    configFiles:
+      Debug: Local.xcconfig
+      Release: Local.xcconfig
     sources:
       - path: Wigglegram
         excludes:
@@ -24,7 +27,6 @@ targets:
       - path: Wigglegram/Resources/Assets.xcassets
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: app.wigglegram.Wigglegram
         INFOPLIST_FILE: Wigglegram/Info.plist
         TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTS_MACCATALYST: NO

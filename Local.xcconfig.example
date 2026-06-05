@@ -1,0 +1,17 @@
+// Copy this file to `Local.xcconfig` and fill in your values.
+// `Local.xcconfig` is gitignored so your personal signing info never leaves your machine.
+//
+// How to find your DEVELOPMENT_TEAM:
+//   Xcode → Settings (⌘,) → Accounts → select your Apple ID
+//   → look at the "Team" column on the right.
+//   The 10-character code in parentheses (e.g. "Personal Team (ABCDEF1234)")
+//   is your DEVELOPMENT_TEAM.
+//
+//   Or run this in Terminal once you've signed any project with this Apple ID:
+//     security find-identity -v -p codesigning | head -5
+//   The "Apple Development: ... (TEAMID)" string contains your team ID.
+
+DEVELOPMENT_TEAM = REPLACE_WITH_YOUR_TEAM_ID
+
+// Must be globally unique on Apple's servers. Just append your name / handle.
+PRODUCT_BUNDLE_IDENTIFIER = app.wigglegram.Wigglegram.REPLACE_WITH_YOUR_NAME

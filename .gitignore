@@ -47,3 +47,6 @@ Wigglegram.xcodeproj/
 
 # Local XcodeGen install (downloaded prebuilt binary, not source)
 .tools/
+
+# Per-developer signing config (DEVELOPMENT_TEAM, PRODUCT_BUNDLE_IDENTIFIER)
+Local.xcconfig
