@@ -41,6 +41,8 @@
     </array>
     <key>NSCameraUsageDescription</key>
     <string>Wigglegram needs access to your camera to capture two photographs from different rear lenses, then combine them into a wiggle animation.</string>
+    <key>NSMotionUsageDescription</key>
+    <string>Wigglegram uses motion sensors briefly to guide you through sliding the phone between the two shots when using sequential capture.</string>
     <key>NSPhotoLibraryAddUsageDescription</key>
     <string>Wigglegram saves your exported wigglegrams (GIF, MP4) and source frames to your Photos library.</string>
     <key>NSPhotoLibraryUsageDescription</key>

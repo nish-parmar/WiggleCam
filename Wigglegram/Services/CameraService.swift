@@ -56,6 +56,10 @@ final class CameraService: NSObject, ObservableObject {
     private var primaryDevice: AVCaptureDevice?
     private var secondaryDevice: AVCaptureDevice?
 
+    /// Convenience for callers (e.g. guided sequential capture) that need
+    /// the active lens's FOV without exposing the full device.
+    var primaryDeviceFOV: Float? { primaryDevice?.activeFormat.videoFieldOfView }
+
     // MARK: - In-flight capture state
     private var pendingDualResults: [String: UIImage] = [:]
     private var pendingDualContinuation: CheckedContinuation<(UIImage, UIImage), Error>?
@@ -123,6 +127,39 @@ final class CameraService: NSObject, ObservableObject {
             if session.isRunning {
                 session.stopRunning()
                 Task { @MainActor in self?.isSessionRunning = false }
+            }
+        }
+    }
+
+    // MARK: - Focus / Exposure
+    /// Sets focus and exposure point-of-interest on all active rear cameras.
+    /// `devicePoint` is in AVFoundation's normalized device space (0..1, with
+    /// 0,0 at the top-left of the *unrotated* sensor) — convert from a layer
+    /// tap via `AVCaptureVideoPreviewLayer.captureDevicePointConverted(fromLayerPoint:)`.
+    func setFocusAndExposure(at devicePoint: CGPoint) {
+        let devices = [primaryDevice, secondaryDevice].compactMap { $0 }
+        for device in devices {
+            do {
+                try device.lockForConfiguration()
+                defer { device.unlockForConfiguration() }
+                if device.isFocusPointOfInterestSupported {
+                    device.focusPointOfInterest = devicePoint
+                }
+                if device.isFocusModeSupported(.autoFocus) {
+                    device.focusMode = .autoFocus
+                } else if device.isFocusModeSupported(.continuousAutoFocus) {
+                    device.focusMode = .continuousAutoFocus
+                }
+                if device.isExposurePointOfInterestSupported {
+                    device.exposurePointOfInterest = devicePoint
+                }
+                if device.isExposureModeSupported(.autoExpose) {
+                    device.exposureMode = .autoExpose
+                } else if device.isExposureModeSupported(.continuousAutoExposure) {
+                    device.exposureMode = .continuousAutoExposure
+                }
+            } catch {
+                // Best-effort — silently skip devices we cannot lock.
             }
         }
     }
@@ -347,6 +384,16 @@ final class CameraService: NSObject, ObservableObject {
             primaryOutput.capturePhoto(with: settings,
                                        delegate: SinglePhotoDelegate(owner: self))
         }
+    }
+
+    /// Public single-shot for the guided sequential UX, which needs to take
+    /// frame A, run the motion guide, then take frame B as discrete steps.
+    /// Sets `isCapturing` for the duration of the shutter so the shutter
+    /// button can disable itself.
+    func captureSingleShot() async throws -> UIImage {
+        isCapturing = true
+        defer { isCapturing = false }
+        return try await captureSingle()
     }
 
     // MARK: - Delegate callbacks (called on the photo output's internal queue)
