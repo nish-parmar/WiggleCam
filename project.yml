@@ -22,8 +22,6 @@ targets:
           - "**/.DS_Store"
     resources:
       - path: Wigglegram/Resources/Assets.xcassets
-    info:
-      path: Wigglegram/Info.plist
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.wigglegram.Wigglegram
